@@ -1,39 +1,78 @@
-name: Security Checks
+# name: Security Checks
 
-on: [push]
+# on: [push]
 
-permissions:
-  contents: read
+# permissions:
+#   contents: read
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#         include:
+#           - python-version: 3.8
+#             toxenv: safety
+#           - python-version: 3.9
+#             toxenv: safety
+#           - python-version: 3.10.9
+#             toxenv: safety
+#           - python-version: 3.11
+#             toxenv: safety
+
+#     steps:
+#       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
+#         with:
+#           submodules: recursive
+#       - name: Setup python
+#         uses: actions/setup-python@3542bca2639a428e1796aaa6a2ffef0c0f575566
+#         with:
+#           python-version: ${{ matrix.python-version }}
+#       - name: Install dependencies
+#         run: |
+#           pip install --upgrade virtualenv
+#           pip install tox
+#       - name: Run tests
+#         env:
+#           TOXENV: ${{ matrix.toxenv }}
+#         run: tox
+
+name: Go Security & Build Check
+
+on:
+  push:
+    branches:
+      - sandbox-testing
+  pull_request:
+    branches:
+      - sandbox-testing
 
 jobs:
   build:
+    name: Build and Test Sandcat (Go)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - python-version: 3.8
-            toxenv: safety
-          - python-version: 3.9
-            toxenv: safety
-          - python-version: 3.10.9
-            toxenv: safety
-          - python-version: 3.11
-            toxenv: safety
 
     steps:
-      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
         with:
-          submodules: recursive
-      - name: Setup python
-        uses: actions/setup-python@3542bca2639a428e1796aaa6a2ffef0c0f575566
+          go-version: 1.21.5 # Changed this to your required Go version
+
+      - name: Verify Go Installation
+        run: go version
+
+      - name: Install Dependencies
+        run: go mod tidy
+
+      - name: Build Sandcat
+        working-directory: ./plugins/sandcat/gocat
+        run: GOOS=windows GOARCH=amd64 go build -o sandcat.exe agent.go
+
+      - name: Run GoSec Security Scan
+        uses: securego/gosec@v2.22.1
         with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
-        run: |
-          pip install --upgrade virtualenv
-          pip install tox
-      - name: Run tests
-        env:
-          TOXENV: ${{ matrix.toxenv }}
-        run: tox
+          args: ./...
