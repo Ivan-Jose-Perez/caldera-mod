@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/mitre/gocat/output"
@@ -41,42 +40,44 @@ func (a *Agent) storeLocalP2pReceiverAddresses(receiverName string, p2pReceiver 
 
 // Attempts to look for any compatible peer-to-peer proxy clients for available proxy receivers.
 // Sets the first valid one it can find. Returns an error if no valid proxy clients are found.
-func (a *Agent) findAvailablePeerProxyClient() error {
-	if len(a.availablePeerReceivers) == 0 {
-		// Either we used all available peers, or we simply never had any to start with. Refresh
-		// the used peers if possible.
-		if len(a.exhaustedPeerReceivers) == 0 {
-			return errors.New("No peer proxy receivers available to connect to.")
-		}
-		output.VerbosePrint("[*] All available peer proxy receivers have been tried. Retrying them.")
-		a.refreshAvailablePeerReceivers()
-	}
-	for proxyChannel, receiverAddresses := range a.availablePeerReceivers {
-		if len(receiverAddresses) > 0 {
-			output.VerbosePrint(fmt.Sprintf("[-] Verifying proxy channel %s", proxyChannel))
 
-			// Attempt to set the new coms channel.
-			if err := a.AttemptSelectComChannel(nil, proxyChannel); err != nil {
-				output.VerbosePrint(fmt.Sprintf("[!] Error attempting to use proxy channel %s: %s", proxyChannel, err.Error()))
+// Commenting out because I included a proxy client in the agent.
+// func (a *Agent) findAvailablePeerProxyClient() error {
+// 	if len(a.availablePeerReceivers) == 0 {
+// 		// Either we used all available peers, or we simply never had any to start with. Refresh
+// 		// the used peers if possible.
+// 		if len(a.exhaustedPeerReceivers) == 0 {
+// 			return errors.New("No peer proxy receivers available to connect to.")
+// 		}
+// 		output.VerbosePrint("[*] All available peer proxy receivers have been tried. Retrying them.")
+// 		a.refreshAvailablePeerReceivers()
+// 	}
+// 	for proxyChannel, receiverAddresses := range a.availablePeerReceivers {
+// 		if len(receiverAddresses) > 0 {
+// 			output.VerbosePrint(fmt.Sprintf("[-] Verifying proxy channel %s", proxyChannel))
 
-				// Remove the invalid proxy channel from the pool. Safe to remove during iteration.
-				delete(a.availablePeerReceivers, proxyChannel)
-				continue
-			}
-			// Successfully set the channel. Update dest address.
-			a.usingPeerReceivers = true
-			addressToUse := receiverAddresses[0]
-			a.updateUpstreamDestAddr(addressToUse)
-			output.VerbosePrint(fmt.Sprintf("[*] Updated agent's destination address to proxy peer address: %s", addressToUse))
+// 			// Attempt to set the new coms channel.
+// 			if err := a.AttemptSelectComChannel(nil, proxyChannel); err != nil {
+// 				output.VerbosePrint(fmt.Sprintf("[!] Error attempting to use proxy channel %s: %s", proxyChannel, err.Error()))
 
-			// Mark proxy channel and peer receiver address as used.
-			a.markPeerReceiverAsUsed(proxyChannel, addressToUse)
-			a.peerProxyReceiverDisplay()
-			return nil
-		}
-	}
-	return errors.New("No available compatible peer-to-peer proxy clients found.")
-}
+// 				// Remove the invalid proxy channel from the pool. Safe to remove during iteration.
+// 				delete(a.availablePeerReceivers, proxyChannel)
+// 				continue
+// 			}
+// 			// Successfully set the channel. Update dest address.
+// 			a.usingPeerReceivers = true
+// 			addressToUse := receiverAddresses[0]
+// 			a.updateUpstreamDestAddr(addressToUse)
+// 			output.VerbosePrint(fmt.Sprintf("[*] Updated agent's destination address to proxy peer address: %s", addressToUse))
+
+// 			// Mark proxy channel and peer receiver address as used.
+// 			a.markPeerReceiverAsUsed(proxyChannel, addressToUse)
+// 			a.peerProxyReceiverDisplay()
+// 			return nil
+// 		}
+// 	}
+// 	return errors.New("No available compatible peer-to-peer proxy clients found.")
+// }
 
 // Mark the peer proxy channel and receiver address as exhausted, so the agent doesn't try using it again
 // before trying the remaining ones.
@@ -122,7 +123,7 @@ func deleteStringFromSlice(deleteFrom []string, toDelete string) []string {
 }
 
 // Display some output about the available/used peer proxy receivers.
-func (a* Agent) peerProxyReceiverDisplay() {
+func (a *Agent) peerProxyReceiverDisplay() {
 	output.VerbosePrint("[*] Valid peer proxy receivers used so far: ")
 	for channel, addrs := range a.exhaustedPeerReceivers {
 		for _, addr := range addrs {
