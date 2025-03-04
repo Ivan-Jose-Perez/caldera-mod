@@ -1,0 +1,6 @@
+id: payloads
+name: Payloads Plugin
+description: Plugin containing compiled payloads for Sandcat
+version: 1.0
+authors:
+  - MITRE
