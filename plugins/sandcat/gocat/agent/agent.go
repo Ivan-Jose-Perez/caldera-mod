@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -200,69 +199,16 @@ func (a *Agent) GetTrimmedProfile() map[string]interface{} {
 	}
 }
 
-// ***** OLD BEACONING *****
 // Pings C2 for instructions and returns them.
-// func (a *Agent) Beacon() map[string]interface{} {
-// 	var beacon map[string]interface{}
-// 	profile := a.GetFullProfile()
-// 	response := a.beaconContact.GetBeaconBytes(profile)
-// 	if response != nil {
-// 		beacon = a.processBeacon(response)
-// 	} else {
-// 		output.VerbosePrint("[-] beacon: DEAD")
-// 	}
-// 	return beacon
-// }
-
-// ***** NEW BEACONING *****
-// Pings C2 for instructions and returns them using Named Pipe (Windows) or Unix Socket (Linux/macOS).
 func (a *Agent) Beacon() map[string]interface{} {
 	var beacon map[string]interface{}
 	profile := a.GetFullProfile()
-	var conn net.Conn
-	var err error
-
-	// Check OS and set socket path
-	var socketPath string
-	if runtime.GOOS == "windows" {
-		socketPath = `\\.\pipe\sandcat.sock`
-		conn, err = net.Dial("unix", socketPath) // Named Pipe on Windows
+	response := a.beaconContact.GetBeaconBytes(profile)
+	if response != nil {
+		beacon = a.processBeacon(response)
 	} else {
-		socketPath = "/tmp/sandcat.sock"
-		conn, err = net.Dial("unix", socketPath) // Unix Socket on Linux/macOS
+		output.VerbosePrint("[-] beacon: DEAD")
 	}
-
-	// Handle connection errors
-	if err != nil {
-		fmt.Println("[-] Beacon: FAILED to connect to socket:", err)
-		return nil
-	}
-	defer conn.Close()
-
-	// Convert profile to JSON and send through the socket
-	profileBytes, _ := json.Marshal(profile)
-	_, writeErr := conn.Write(profileBytes)
-	if writeErr != nil {
-		fmt.Println("[-] Beacon: ERROR writing to socket")
-		return nil
-	}
-
-	// Read response from the socket
-	responseBytes := make([]byte, 4096)
-	n, readErr := conn.Read(responseBytes)
-	if readErr != nil {
-		fmt.Println("[-] Beacon: ERROR reading response from socket")
-		return nil
-	}
-
-	// Process the response from the socket
-	err = json.Unmarshal(responseBytes[:n], &beacon)
-	if err != nil {
-		fmt.Println("[-] Beacon: ERROR parsing response from socket")
-		return nil
-	}
-
-	fmt.Println("[+] Beacon (Socket Communication): ALIVE")
 	return beacon
 }
 
@@ -393,69 +339,25 @@ func (a *Agent) removePayloadsOnDisk(payloads []string) {
 	}
 }
 
-// Adding a find available peer proxy function to call incase the socket connection fails
-// Attempts to find and switch to an available peer proxy client.
-func (a *Agent) findAvailablePeerProxyClient() error {
-	// Check if there are any available peer proxy receivers.
-	if len(a.availablePeerReceivers) > 0 {
-		for protocol, addresses := range a.availablePeerReceivers {
-			if len(addresses) > 0 {
-				// Set the first available peer as the upstream destination.
-				a.upstreamDestAddr = addresses[0]
-				output.VerbosePrint(fmt.Sprintf("[*] Switching to peer proxy: %s (%s)", addresses[0], protocol))
-				return nil
-			}
-		}
-	}
-	// If no available peers, return an error.
-	return errors.New("No available peer proxy clients found.")
-}
-
-// ***** OLD COMMUNICATION CHANNEL SETTING *****
 // Sets the communication channels for the agent according to the specified channel configuration map.
 // Will resort to peer-to-peer if agent doesn't support the requested channel or if the C2's requirements
 // are not met. If the original requested channel cannot be used and there are no compatible peer proxy receivers,
 // then an error will be returned.
 // This method does not test connectivity to the requested server or to proxy receivers.
-// func (a *Agent) SetCommunicationChannels(requestedChannelConfig map[string]string) error {
-// 	if len(contact.CommunicationChannels) > 0 {
-// 		if requestedChannel, ok := requestedChannelConfig["c2Name"]; ok {
-// 			if err := a.AttemptSelectComChannel(requestedChannelConfig, requestedChannel); err == nil {
-// 				return nil
-// 			} else {
-// 				output.VerbosePrint(fmt.Sprintf("[!] Error setting comm channel: %v", err.Error()))
-// 			}
-// 		}
-// 		// Original requested channel not found. See if we can use any available peer-to-peer-proxy receivers.
-// 		output.VerbosePrint("[!] Requested communication channel not valid or available. Resorting to peer-to-peer.")
-// 		return a.findAvailablePeerProxyClient()
-// 	}
-// 	return errors.New("No possible C2 communication channels found.")
-// }
-
-// ***** NEW COMMUNICATION CHANNEL SETTING *****
-// Sets the communication channel based on OS (Windows = Named Pipe, Linux/macOS = Unix Socket).
 func (a *Agent) SetCommunicationChannels(requestedChannelConfig map[string]string) error {
-	var socketPath string
-	if runtime.GOOS == "windows" {
-		socketPath = `\\.\pipe\sandcat.sock`
-	} else {
-		socketPath = "/tmp/sandcat.sock"
+	if len(contact.CommunicationChannels) > 0 {
+		if requestedChannel, ok := requestedChannelConfig["c2Name"]; ok {
+			if err := a.AttemptSelectComChannel(requestedChannelConfig, requestedChannel); err == nil {
+				return nil
+			} else {
+				output.VerbosePrint(fmt.Sprintf("[!] Error setting comm channel: %v", err.Error()))
+			}
+		}
+		// Original requested channel not found. See if we can use any available peer-to-peer-proxy receivers.
+		output.VerbosePrint("[!] Requested communication channel not valid or available. Resorting to peer-to-peer.")
+		return a.findAvailablePeerProxyClient()
 	}
-
-	// Try connecting to the socket
-	conn, err := net.Dial("unix", socketPath)
-	if err != nil {
-		fmt.Println("[!] Socket not available, falling back to peer-to-peer.")
-		return a.findAvailablePeerProxyClient() // Fallback if the socket fails
-	}
-	defer conn.Close()
-
-	// Assign the socket as the primary communication channel
-	a.upstreamDestAddr = socketPath
-	fmt.Println("[*] Communication channel set to SOCKET:", socketPath)
-
-	return nil
+	return errors.New("No possible C2 communication channels found.")
 }
 
 // Attempts to set a given communication channel for the agent.
